@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balang Araw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Cormorant+Garamond:ital,wght@0,300;0,500;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0a0b;
+    --ink:#f4ece4;
+    --muted:#b8a99c;
+    --gold:#e9c79a;
+    --rose:#e8a5a5;
+    --paper:#fbf7f1;
+    --paper-ink:#3a2f2a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:auto}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Cormorant Garamond',Georgia,serif;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  body.locked{overflow:hidden;height:100vh}
+
+  /* floating lights */
+  #lights{position:fixed;inset:0;pointer-events:none;z-index:0}
+  main{position:relative;z-index:1}
+
+  /* hidden player */
+  /* YouTube refuses to play in players smaller than 200x200, so keep it full size but invisible */
+  #yt{position:fixed;width:200px;height:200px;left:0;bottom:0;opacity:0.01;pointer-events:none;z-index:-1}
+  #open[disabled]{opacity:.45!important;cursor:wait;animation:none!important}
+  #musicFix{
+    position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:60;display:none;
+    background:rgba(20,15,16,.85);color:var(--ink);border:1px solid rgba(233,199,154,.5);
+    font-family:'Cormorant Garamond',serif;font-size:1.1rem;padding:.6em 1.4em;border-radius:999px;cursor:pointer;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)
+  }
+  #musicFix.show{display:block}
+  #progress{position:fixed;left:0;top:0;height:2px;width:100%;z-index:45;transform-origin:left;transform:scaleX(0);
+    background:linear-gradient(90deg,var(--rose),var(--gold));opacity:.7}
+
+  /* ---------- intro gate ---------- */
+  #gate{
+    position:fixed;inset:0;z-index:50;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;
+    background:radial-gradient(ellipse at center,#1d1416 0%,#0d0a0b 70%);
+    transition:opacity 2.2s ease, visibility 2.2s;
+  }
+  #gate.gone{opacity:0;visibility:hidden}
+  #gate .small{font-family:'Caveat',cursive;font-size:1.6rem;color:var(--rose);opacity:0;animation:rise 1.6s .4s forwards}
+  #gate h1{font-weight:300;font-style:italic;font-size:clamp(2.4rem,9vw,4.6rem);line-height:1.05;margin:.3em 0 .5em;opacity:0;animation:rise 1.8s 1.2s forwards}
+  #gate p{color:var(--muted);font-size:1.15rem;max-width:26ch;opacity:0;animation:rise 1.6s 2.2s forwards}
+  #open{
+    margin-top:2.2rem;opacity:0;animation:rise 1.6s 3s forwards;
+    font-family:'Cormorant Garamond',serif;font-size:1.25rem;letter-spacing:.08em;
+    color:var(--ink);background:transparent;border:1px solid rgba(233,199,154,.5);
+    padding:.85em 2.2em;border-radius:999px;cursor:pointer;
+    box-shadow:0 0 0 0 rgba(233,199,154,.35);
+  }
+  #open.ready{animation:rise 1.6s 3s forwards, pulse 2.6s 4.6s infinite}
+  #open:hover{background:rgba(233,199,154,.08)}
+  #gate .hint{margin-top:1.2rem;font-size:.95rem;color:#7d6f66;opacity:0;animation:rise 1.6s 3.6s forwards}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(233,199,154,.35)}70%{box-shadow:0 0 0 18px rgba(233,199,154,0)}100%{box-shadow:0 0 0 0 rgba(233,199,154,0)}}
+
+  /* ---------- chapter cards ---------- */
+  .chapter{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:16vh 20px;
+  }
+  .chapter .num{font-family:'Caveat',cursive;color:var(--rose);font-size:1.5rem;letter-spacing:.05em}
+  .chapter h2{font-weight:300;font-style:italic;font-size:clamp(2.2rem,8vw,4.2rem);line-height:1.1;margin:.25em 0 .4em}
+  .chapter p{color:var(--muted);font-size:clamp(1.1rem,3.6vw,1.4rem);max-width:30ch;line-height:1.5}
+  .line{display:block;width:1px;height:70px;margin:2.2rem auto 0;background:linear-gradient(var(--gold),transparent)}
+
+  /* ---------- polaroids ---------- */
+  .moment{
+    min-height:92vh;display:flex;align-items:center;justify-content:center;
+    padding:6vh 16px;
+  }
+  .polaroid{
+    background:var(--paper);padding:14px 14px 0;border-radius:3px;
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.8),0 10px 20px -10px rgba(0,0,0,.6);
+    width:min(88vw,430px);
+    transform:translateY(60px) rotate(var(--tilt,0deg)) scale(.94);
+    opacity:0;filter:blur(6px);
+    transition:opacity 1.6s ease, transform 1.8s cubic-bezier(.2,.7,.2,1), filter 1.6s ease;
+  }
+  .polaroid.wide{width:min(92vw,620px)}
+  .polaroid .frame{overflow:hidden;background:#222}
+  .polaroid img{display:block;width:100%;height:auto;transform:scale(1.12);transition:transform 9s ease-out;filter:sepia(.25) saturate(.85)}
+  .polaroid figcaption{
+    font-family:'Caveat',cursive;color:var(--paper-ink);
+    font-size:clamp(1.35rem,4.6vw,1.65rem);line-height:1.25;
+    padding:16px 6px 22px;text-align:center;min-height:3.5em;
+  }
+  .in .polaroid{opacity:1;filter:none;transform:translateY(0) rotate(var(--tilt,0deg)) scale(1)}
+  .in .polaroid img{transform:scale(1);filter:sepia(0) saturate(1);transition:transform 9s ease-out, filter 3s ease}
+  .caption-text .w{opacity:0;transition:opacity .5s ease}
+  .caption-text .w.on{opacity:1}
+
+  /* pair layout */
+  .pair{display:flex;gap:18px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .pair .polaroid{width:min(80vw,330px)}
+  .pair .polaroid:nth-child(2){transition-delay:.5s}
+
+  /* ---------- faith ---------- */
+  .faith{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12vh 16px;text-align:center}
+  .faith .glow{
+    width:min(78vw,340px);border-radius:200px 200px 6px 6px;overflow:hidden;
+    box-shadow:0 0 80px rgba(233,199,154,.25);
+    opacity:0;transform:translateY(40px);transition:all 2s ease;
+  }
+  .faith .glow img{width:100%;display:block}
+  .faith blockquote{margin-top:2rem;font-style:italic;font-size:clamp(1.25rem,4.4vw,1.6rem);max-width:28ch;line-height:1.45;opacity:0;transition:opacity 2s 1s}
+  .faith cite{display:block;margin-top:.8rem;font-style:normal;color:var(--gold);font-size:1rem;letter-spacing:.1em;opacity:0;transition:opacity 2s 1.8s}
+  .faith.in .glow,.faith.in blockquote,.faith.in cite{opacity:1;transform:none}
+
+  /* ---------- then and now ---------- */
+  .thennow{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:12vh 16px;gap:22px;text-align:center}
+  .thennow .row{display:flex;gap:14px;justify-content:center;width:100%;max-width:720px}
+  .thennow figure{flex:1;opacity:0;transform:translateY(30px);transition:all 1.8s ease}
+  .thennow figure:nth-child(2){transition-delay:1.2s}
+  .thennow img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:4px;display:block}
+  .thennow figcaption{font-family:'Caveat',cursive;font-size:1.6rem;color:var(--rose);margin-top:8px}
+  .thennow p{color:var(--muted);font-size:clamp(1.15rem,4vw,1.45rem);max-width:30ch;opacity:0;transition:opacity 2s 2.2s}
+  .thennow.in figure,.thennow.in p{opacity:1;transform:none}
+
+  /* ---------- finale ---------- */
+  .finale{position:relative;min-height:115vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+  .finale .bg{position:absolute;inset:0;background:url(photos/1.jpg) center/cover no-repeat;transform:scale(1.15);opacity:0;transition:opacity 3s ease, transform 14s ease-out}
+  .finale::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,var(--bg) 0%,rgba(13,10,11,.15) 30%,rgba(13,10,11,.35) 60%,var(--bg) 100%)}
+  .finale.in .bg{opacity:1;transform:scale(1)}
+  .finale .words{position:relative;z-index:2;text-align:center;padding:0 20px 14vh;max-width:640px}
+  .finale .words span{display:block;opacity:0;transform:translateY(16px);transition:all 1.6s ease;text-shadow:0 2px 20px rgba(0,0,0,.9)}
+  .finale .words .a{font-size:clamp(1.3rem,4.4vw,1.7rem);color:#efe3d7;font-style:italic}
+  .finale .words .b{font-weight:300;font-size:clamp(2.6rem,10vw,5rem);line-height:1.05;margin:.35em 0;color:#fff}
+  .finale .words .c{font-family:'Caveat',cursive;font-size:clamp(1.6rem,5.5vw,2.2rem);color:var(--gold)}
+  .finale.in .words .a{opacity:1;transform:none;transition-delay:1.5s}
+  .finale.in .words .b{opacity:1;transform:none;transition-delay:3.5s}
+  .finale.in .words .c{opacity:1;transform:none;transition-delay:5.5s}
+
+  /* ---------- letter ---------- */
+  .letter-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12vh 16px}
+  .letter{
+    background:var(--paper);color:var(--paper-ink);
+    width:min(92vw,560px);padding:42px 30px 46px;border-radius:4px;
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.9);
+    font-family:'Caveat',cursive;font-size:clamp(1.4rem,4.8vw,1.75rem);line-height:1.45;
+    opacity:0;transform:translateY(50px) rotate(-1deg);transition:all 2s ease;
+  }
+  .letter-wrap.in .letter{opacity:1;transform:rotate(-1deg)}
+  .letter p{margin-bottom:.9em}
+  .letter .sign{text-align:right;margin-top:1.4em;color:#9b4b4b}
+
+  .end{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10vh 20px 16vh}
+  .end h3{font-weight:300;font-style:italic;font-size:clamp(2rem,7vw,3.2rem)}
+  .end p{color:var(--muted);margin-top:.6rem;font-size:1.15rem}
+  .end button{margin-top:2rem;background:none;border:1px solid rgba(233,199,154,.45);color:var(--ink);font-family:inherit;font-size:1.1rem;padding:.7em 1.8em;border-radius:999px;cursor:pointer}
+
+  /* ---------- controls ---------- */
+  .controls{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;gap:10px;opacity:0;transition:opacity 1s}
+  .controls.show{opacity:1}
+  .controls button{
+    width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
+    background:rgba(20,15,16,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    color:var(--ink);cursor:pointer;display:grid;place-items:center;
+  }
+  .controls svg{width:18px;height:18px;fill:currentColor}
+  .nowplaying{
+    position:fixed;left:16px;bottom:22px;z-index:40;font-size:.95rem;color:var(--muted);
+    font-style:italic;opacity:0;transition:opacity 1.5s;max-width:60vw
+  }
+  .nowplaying.show{opacity:.85}
+  .nowplaying b{font-weight:500;color:var(--ink)}
+  .bars{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:8px;vertical-align:-1px}
+  .bars i{width:2px;background:var(--gold);animation:bar 1s infinite ease-in-out}
+  .bars i:nth-child(2){animation-delay:.2s}.bars i:nth-child(3){animation-delay:.4s}
+  .paused .bars i{animation-play-state:paused}
+  @keyframes bar{0%,100%{height:3px}50%{height:12px}}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01s!important;animation-duration:.01s!important}
+  }
+</style>
+</head>
+<body class="locked">
+<canvas id="lights"></canvas>
+<div id="yt"></div>
+
+<!-- ============ INTRO ============ -->
+<section id="gate">
+  <div class="small">para sa'yo</div>
+  <h1>Do you remember<br>how it all began?</h1>
+  <p>Find a quiet place. Turn your volume up. Take your time.</p>
+  <button id="open" disabled>loading our song…</button>
+  <div class="hint">no need to scroll. let the song carry you.</div>
+</section>
+
+<main id="story">
+
+  <!-- CHAPTER 1 -->
+  <section class="chapter reveal">
+    <div class="num">i.</div>
+    <h2>Back when it was<br>just you and me</h2>
+    <p>Before the house, before the car, before the braces. It was only us, and that was already everything.</p>
+    <span class="line"></span>
+  </section>
+
+  <section class="moment reveal"><figure class="polaroid wide" style="--tilt:-2deg"><div class="frame"><img src="photos/21.jpg" alt=""></div><figcaption class="caption-text">Where it all started. Two goofy faces under the city lights.</figcaption></figure></section>
+  <section class="moment reveal"><div class="pair">
+    <figure class="polaroid" style="--tilt:2.5deg"><div class="frame"><img src="photos/24.jpg" alt=""></div><figcaption class="caption-text">Late-night walks and sleepy faces.</figcaption></figure>
+    <figure class="polaroid" style="--tilt:-2.5deg"><div class="frame"><img src="photos/25.jpg" alt=""></div><figcaption class="caption-text">That laugh. I fell for it long ago, and I'm still falling.</figcaption></figure>
+  </div></section>
+  <section class="moment reveal"><div class="pair">
+    <figure class="polaroid" style="--tilt:-2deg"><div class="frame"><img src="photos/22.jpg" alt=""></div><figcaption class="caption-text">Cheap snacks, big laughs. We had so little, and it felt like so much.</figcaption></figure>
+    <figure class="polaroid" style="--tilt:2deg"><div class="frame"><img src="photos/23.jpg" alt=""></div><figcaption class="caption-text">Nothing fancy. Just you, close to me. That was enough.</figcaption></figure>
+  </div></section>
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:-3deg"><div class="frame"><img src="photos/16.jpg" alt=""></div><figcaption class="caption-text">Braces, late nights, and the silliest faces. Look at us.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:2.5deg"><div class="frame"><img src="photos/10.jpg" alt=""></div><figcaption class="caption-text">You fell asleep on my shoulder like it was the safest place in the world. It still is.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid wide" style="--tilt:-1.5deg"><div class="frame"><img src="photos/14.jpg" alt=""></div><figcaption class="caption-text">No plans. No money. Just us on the floor, laughing at nothing.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid wide" style="--tilt:2deg"><div class="frame"><img src="photos/2.jpg" alt=""></div><figcaption class="caption-text">The long working nights. You never gave up, not once.</figcaption></figure></section>
+
+  <!-- CHAPTER 2 -->
+  <section class="chapter reveal">
+    <div class="num">ii.</div>
+    <h2>Then our little<br>family grew</h2>
+    <p>Four paws at a time. They turned our days into home.</p>
+    <span class="line"></span>
+  </section>
+
+  <section class="moment reveal"><div class="pair">
+    <figure class="polaroid" style="--tilt:-3deg"><div class="frame"><img src="photos/3.jpg" alt=""></div><figcaption class="caption-text">He never let a quiet moment stay quiet.</figcaption></figure>
+    <figure class="polaroid" style="--tilt:3deg"><div class="frame"><img src="photos/5.jpg" alt=""></div><figcaption class="caption-text">Our golden boy, guarding everything we were building.</figcaption></figure>
+  </div></section>
+  <section class="moment reveal"><div class="pair">
+    <figure class="polaroid" style="--tilt:2deg"><div class="frame"><img src="photos/7.jpg" alt=""></div><figcaption class="caption-text">Even bath time was an adventure.</figcaption></figure>
+    <figure class="polaroid" style="--tilt:-2deg"><div class="frame"><img src="photos/8.jpg" alt=""></div><figcaption class="caption-text">Little hands helping. Little hearts growing.</figcaption></figure>
+  </div></section>
+
+  <!-- CHAPTER 3 -->
+  <section class="chapter reveal">
+    <div class="num">iii.</div>
+    <h2>All the places<br>we found each other</h2>
+    <p>Cafés, birthdays, rooftops, beaches. Different places, same feeling. Home was always wherever you were.</p>
+    <span class="line"></span>
+  </section>
+
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:-2deg"><div class="frame"><img src="photos/15.jpg" alt=""></div><figcaption class="caption-text">You took the picture. I was too busy looking at you.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:2deg"><div class="frame"><img src="photos/9.jpg" alt=""></div><figcaption class="caption-text">Another birthday. Another year I got to celebrate you.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:-1.5deg"><div class="frame"><img src="photos/12.jpg" alt=""></div><figcaption class="caption-text">High above the city, and you were still the best view.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid wide" style="--tilt:1.5deg"><div class="frame"><img src="photos/17.jpg" alt=""></div><figcaption class="caption-text">Your smile next to mine. My favorite photograph.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:-2.5deg"><div class="frame"><img src="photos/11.jpg" alt=""></div><figcaption class="caption-text">Windy beaches, messy hair, and you holding on to me.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid wide" style="--tilt:2deg"><div class="frame"><img src="photos/13.jpg" alt=""></div><figcaption class="caption-text">Wherever the road took us, we went together.</figcaption></figure></section>
+
+  <!-- CHAPTER 4 -->
+  <section class="chapter reveal">
+    <div class="num">iv.</div>
+    <h2>The One who<br>held us together</h2>
+    <p>Through every storm, we were never really alone.</p>
+    <span class="line"></span>
+  </section>
+
+  <section class="faith reveal">
+    <div class="glow"><img src="photos/6.jpg" alt=""></div>
+    <blockquote>"A cord of three strands is not quickly broken."</blockquote>
+    <cite>ECCLESIASTES 4:12</cite>
+  </section>
+
+  <!-- CHAPTER 5 -->
+  <section class="chapter reveal">
+    <div class="num">v.</div>
+    <h2>Balang araw,<br>we used to say</h2>
+    <p>Someday we'll have our own car. Someday our own couch. Someday a home with our names on it.</p>
+    <span class="line"></span>
+  </section>
+
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:-2deg"><div class="frame"><img src="photos/20.jpg" alt=""></div><figcaption class="caption-text">Remember when this was just a "someday"?</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid" style="--tilt:2deg"><div class="frame"><img src="photos/18.jpg" alt=""></div><figcaption class="caption-text">Now our little one guards it like treasure.</figcaption></figure></section>
+  <section class="moment reveal"><figure class="polaroid wide" style="--tilt:-1.5deg"><div class="frame"><img src="photos/4.jpg" alt=""></div><figcaption class="caption-text">Piece by piece, our home started to take shape.</figcaption></figure></section>
+
+  <section class="thennow reveal">
+    <div class="row">
+      <figure><img src="photos/14.jpg" alt=""><figcaption>noon</figcaption></figure>
+      <figure><img src="photos/19.jpg" alt=""><figcaption>ngayon</figcaption></figure>
+    </div>
+    <p>From lying on a borrowed floor to standing in front of our own home.</p>
+  </section>
+
+  <!-- FINALE -->
+  <section class="finale reveal">
+    <div class="bg"></div>
+    <div class="words">
+      <span class="a">Look how far we've come, love.</span>
+      <span class="b">Someday<br>is today.</span>
+      <span class="c">and I'd do it all again, with you</span>
+    </div>
+  </section>
+
+  <!-- LETTER -->
+  <section class="letter-wrap reveal">
+    <div class="letter">
+      <p>My love,</p>
+      <p>Every photo here was once an ordinary day. We didn't know back then that we were building something. We were just tired, and broke, and laughing, and holding on.</p>
+      <p>But look at it now. The little home with the Christmas lights. The dogs waiting at the door. The car we used to dream about. All of it started with you choosing me, again and again, on the days that were easy and the days that weren't.</p>
+      <p>Thank you for staying. Thank you for believing in our "balang araw" even when it felt so far away.</p>
+      <p>We're not done yet. There are so many more somedays left, and I want every single one of them with you.</p>
+      <p class="sign">Forever yours</p>
+    </div>
+  </section>
+
+  <section class="end reveal">
+    <h3>I love you.</h3>
+    <p>Still choosing you. Every single day.</p>
+    <button id="replay">watch our story again</button>
+  </section>
+</main>
+
+<div id="progress"></div>
+<button id="musicFix">tap here to play our song ♪</button>
+<div class="nowplaying" id="np"><span class="bars"><i></i><i></i><i></i></span><b>Balang Araw</b> &middot; Kuya Inday &amp; Pinuno</div>
+<div class="controls" id="controls">
+  <button id="auto" title="Pause the story" aria-label="Pause auto-scroll"><svg viewBox="0 0 24 24" id="autoIcon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
+  <button id="mute" title="Mute music" aria-label="Mute music"><svg viewBox="0 0 24 24" id="muteIcon"><path d="M4 9v6h4l5 5V4L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg></button>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+/* ---------------- music ---------------- */
+const VIDEO_ID = 'wiNiRzb7jSc';
+let player = null, playerReady = false, wantPlay = false, muted = false;
+
+window.onYouTubeIframeAPIReady = function(){
+  player = new YT.Player('yt', {
+    width: 1, height: 1, videoId: VIDEO_ID,
+    width: 200, height: 200,
+    playerVars: { autoplay: 0, controls: 0, playsinline: 1, rel: 0, origin: location.origin },
+    events: {
+      onReady: () => { playerReady = true; player.unMute(); player.setVolume(85); enableOpen('tap to begin'); },
+      onStateChange: e => {
+        if (e.data === YT.PlayerState.PLAYING) musicFix.classList.remove('show');
+        // the song ending is the story ending: stay on "I love you"
+      },
+      onError: e => { console.warn('YouTube error', e.data); enableOpen('tap to begin'); }
+    }
+  });
+};
+
+const openBtn = document.getElementById('open');
+const musicFix = document.getElementById('musicFix');
+function enableOpen(label){ openBtn.disabled = false; openBtn.textContent = label; }
+// never leave her stuck on the gate if YouTube is slow or blocked
+setTimeout(() => { if (openBtn.disabled) enableOpen('tap to begin'); }, 8000);
+
+musicFix.addEventListener('click', () => {
+  if (!playerReady) return;
+  player.unMute(); player.setVolume(85); player.playVideo();
+});
+
+function fadeVolume(to, ms){
+  if (!playerReady) return;
+  const from = player.getVolume ? player.getVolume() : 0;
+  const steps = 30; let i = 0;
+  const t = setInterval(() => {
+    i++; player.setVolume(Math.round(from + (to - from) * (i / steps)));
+    if (i >= steps) clearInterval(t);
+  }, ms / steps);
+}
+
+function startMusic(){
+  // must run directly inside the tap, or the browser blocks sound
+  if (!playerReady) { musicFix.classList.add('show'); return; }
+  player.unMute();
+  player.setVolume(85);
+  player.playVideo();
+  // if the browser still blocked it, offer a one-tap fix
+  setTimeout(() => {
+    if (player.getPlayerState() !== YT.PlayerState.PLAYING) musicFix.classList.add('show');
+  }, 3000);
+}
+
+/* ---------------- gate ---------------- */
+const gate = document.getElementById('gate');
+openBtn.classList.add('ready');
+openBtn.addEventListener('click', () => {
+  startMusic();
+  gate.classList.add('gone');
+  document.body.classList.remove('locked');
+  window.scrollTo(0, 0);
+  startStory();
+  setTimeout(() => {
+    document.getElementById('controls').classList.add('show');
+    document.getElementById('np').classList.add('show');
+  }, 2500);
+});
+
+/* ---------------- reveal on scroll ---------------- */
+const io = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if (en.isIntersecting){
+      en.target.classList.add('in');
+      en.target.querySelectorAll('.caption-text').forEach((c, i) => typeCaption(c, 1400 + i * 700));
+      io.unobserve(en.target);
+    }
+  });
+}, { threshold: 0.35 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// split captions into words that fade in one by one, like a whisper
+document.querySelectorAll('.caption-text').forEach(c => {
+  const words = c.textContent.trim().split(/\s+/);
+  c.innerHTML = words.map(w => `<span class="w">${w}</span>`).join(' ');
+});
+function typeCaption(c, delay){
+  if (c.dataset.done) return; c.dataset.done = 1;
+  c.querySelectorAll('.w').forEach((w, i) => setTimeout(() => w.classList.add('on'), delay + i * 160));
+}
+
+/* ---------------- timeline: the story follows the song ---------------- */
+/* Seconds each section stays on screen, in page order. They are scaled to
+   the song's real length (4:01), so the letter lands in the last minute. */
+const SLOTS = [
+  8, 8, 9, 9,                       // i.   just you and me (title, city lights, 2 pairs of early days)
+  7.5, 7.5, 7.5, 7.5,               //      braces selfie, car nap, floor, laptop
+  7, 9, 9,                          // ii.  our little family (title + 2 pairs)
+  6, 7.5, 7.5, 7.5, 7.5, 7.5, 7.5,  // iii. all the places (title + 6 photos)
+  6, 11,                            // iv.  faith (title + baptism)
+  7, 8, 8, 8, 11,                   // v.   balang araw (title + car, dog, sofa, then & now)
+  15,                               // finale: the house
+  21,                               // the letter
+  6                                 // I love you
+];
+let songLength = 241;
+const sections = [...document.querySelectorAll('main > section')];
+let slots = [];
+function buildTimeline(){
+  const sum = SLOTS.reduce((a, b) => a + b, 0), k = songLength / sum;
+  let at = 0;
+  slots = SLOTS.map(s => { const st = at; at += s * k; return [st, s * k]; });
+}
+buildTimeline();
+
+const easeIO = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+function anchors(el){
+  const max = document.documentElement.scrollHeight - innerHeight;
+  const top = el.offsetTop, h = el.offsetHeight;
+  const clamp = v => Math.max(0, Math.min(max, v));
+  // tall sections (the letter on a phone) slowly pan from top to bottom
+  if (h > innerHeight * 1.05) return [clamp(top), clamp(top + h - innerHeight)];
+  const c = clamp(top + h / 2 - innerHeight / 2);
+  return [c, c];
+}
+function targetAt(t){
+  let i = slots.findIndex(([st, len]) => t < st + len);
+  if (i < 0) i = sections.length - 1;
+  const [st, len] = slots[i];
+  const p = Math.min(1, Math.max(0, (t - st) / len));
+  const [a, b] = anchors(sections[i]);
+  const from = i > 0 ? anchors(sections[i - 1])[1] : a;
+  const GLIDE = .28; // first 28% of a slot glides in, the rest lingers
+  if (p < GLIDE) return from + (a - from) * easeIO(p / GLIDE);
+  return a + (b - a) * easeIO((p - GLIDE) / (1 - GLIDE));
+}
+
+let storyOn = false, paused = false, clock = 0, sy = 0;
+let lastUser = -1e9, lastT = performance.now();
+const progress = document.getElementById('progress');
+function isPlaying(){
+  return playerReady && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING;
+}
+function tick(now){
+  const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
+  if (storyOn && !paused){
+    // the song is the clock; if it's muted or blocked, keep time ourselves
+    if (isPlaying() && !muted) clock = player.getCurrentTime();
+    else clock += dt;
+    clock = Math.min(clock, songLength);
+    progress.style.transform = `scaleX(${clock / songLength})`;
+
+    // if she scrolls on her own, let her linger, then drift back after 5s
+    if (now - lastUser > 5000){
+      if (Math.abs(scrollY - sy) > 3) sy = scrollY;
+      sy += (targetAt(clock) - sy) * Math.min(1, dt * 2.2);
+      window.scrollTo(0, sy);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+['wheel', 'touchmove', 'keydown'].forEach(ev =>
+  addEventListener(ev, () => { lastUser = performance.now(); }, { passive: true }));
+
+function startStory(){
+  clock = 0; sy = scrollY; paused = false; storyOn = true;
+  if (playerReady && player.getDuration && player.getDuration() > 30){
+    songLength = player.getDuration(); buildTimeline();
+  }
+}
+
+const autoBtn = document.getElementById('auto'), autoIcon = document.getElementById('autoIcon');
+const muteBtn = document.getElementById('mute'), muteIcon = document.getElementById('muteIcon'), np = document.getElementById('np');
+function setPausedUI(){
+  autoIcon.innerHTML = paused ? '<path d="M8 5v14l11-7z"/>' : '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
+  autoBtn.title = paused ? 'Play' : 'Pause';
+  np.classList.toggle('paused', paused || muted);
+}
+autoBtn.addEventListener('click', () => {
+  paused = !paused;
+  if (playerReady && !muted){
+    if (paused) player.pauseVideo();
+    else { player.seekTo(clock, true); player.playVideo(); }
+  }
+  lastUser = -1e9; sy = scrollY;
+  setPausedUI();
+});
+
+muteBtn.addEventListener('click', () => {
+  if (!playerReady) return;
+  muted = !muted;
+  if (muted) player.pauseVideo();
+  else if (!paused){ player.seekTo(clock, true); player.playVideo(); }
+  muteIcon.innerHTML = muted
+    ? '<path d="M4 9v6h4l5 5V4L8 9H4zm12.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/>'
+    : '<path d="M4 9v6h4l5 5V4L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/>';
+  setPausedUI();
+});
+
+document.getElementById('replay').addEventListener('click', () => {
+  // hide everything again so each memory reappears in time with the song
+  document.querySelectorAll('.reveal').forEach(el => { el.classList.remove('in'); io.observe(el); });
+  document.querySelectorAll('.caption-text').forEach(c => {
+    delete c.dataset.done; c.querySelectorAll('.w').forEach(w => w.classList.remove('on'));
+  });
+  window.scrollTo(0, 0);
+  if (playerReady && !muted){ player.seekTo(0, true); player.playVideo(); }
+  startStory(); lastUser = -1e9;
+  setPausedUI();
+});
+
+/* ---------------- floating lights (like our Christmas lights) ---------------- */
+const cv = document.getElementById('lights'), cx = cv.getContext('2d');
+let W, H, dots = [];
+const COLORS = ['233,199,154','232,165,165','255,236,210','180,200,255'];
+function size(){
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  W = cv.width = innerWidth * dpr; H = cv.height = innerHeight * dpr;
+  cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
+  const n = Math.round(Math.min(46, innerWidth / 22));
+  dots = Array.from({ length: n }, () => ({
+    x: Math.random() * W, y: Math.random() * H,
+    r: (Math.random() * 2.2 + .6) * dpr * 2,
+    vy: -(Math.random() * .25 + .05) * dpr, vx: (Math.random() - .5) * .12 * dpr,
+    a: Math.random() * Math.PI * 2, c: COLORS[Math.floor(Math.random() * COLORS.length)]
+  }));
+}
+function draw(){
+  cx.clearRect(0, 0, W, H);
+  for (const d of dots){
+    d.x += d.vx; d.y += d.vy; d.a += .012;
+    if (d.y < -20){ d.y = H + 20; d.x = Math.random() * W; }
+    const alpha = .18 + Math.sin(d.a) * .14;
+    const g = cx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r * 4);
+    g.addColorStop(0, `rgba(${d.c},${alpha})`); g.addColorStop(1, `rgba(${d.c},0)`);
+    cx.fillStyle = g; cx.beginPath(); cx.arc(d.x, d.y, d.r * 4, 0, Math.PI * 2); cx.fill();
+  }
+  requestAnimationFrame(draw);
+}
+addEventListener('resize', size); size(); draw();
+</script>
+</body>
+</html>

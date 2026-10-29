@@ -26,7 +26,7 @@
     overflow-x:hidden;
     -webkit-font-smoothing:antialiased;
   }
-  body.locked{overflow:hidden;height:100vh}
+  body.locked{overflow:hidden;height:100vh;height:100svh}
 
   /* floating lights */
   #lights{position:fixed;inset:0;pointer-events:none;z-index:0}
@@ -37,7 +37,7 @@
   #yt{position:fixed;width:200px;height:200px;left:0;bottom:0;opacity:0.01;pointer-events:none;z-index:-1}
   #open[disabled]{opacity:.45!important;cursor:wait;animation:none!important}
   #musicFix{
-    position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:60;display:none;
+    position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top));transform:translateX(-50%);z-index:60;display:none;
     background:rgba(20,15,16,.85);color:var(--ink);border:1px solid rgba(233,199,154,.5);
     font-family:'Cormorant Garamond',serif;font-size:1.1rem;padding:.6em 1.4em;border-radius:999px;cursor:pointer;
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)
@@ -167,7 +167,8 @@
   .end button{margin-top:2rem;background:none;border:1px solid rgba(233,199,154,.45);color:var(--ink);font-family:inherit;font-size:1.1rem;padding:.7em 1.8em;border-radius:999px;cursor:pointer}
 
   /* ---------- controls ---------- */
-  .controls{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;gap:10px;opacity:0;transition:opacity 1s}
+  /* keep clear of the iPhone notch and home bar */
+  .controls{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;display:flex;gap:10px;opacity:0;transition:opacity 1s}
   .controls.show{opacity:1}
   .controls button{
     width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
@@ -176,7 +177,7 @@
   }
   .controls svg{width:18px;height:18px;fill:currentColor}
   .nowplaying{
-    position:fixed;left:16px;bottom:22px;z-index:40;font-size:.95rem;color:var(--muted);
+    position:fixed;left:calc(16px + env(safe-area-inset-left));bottom:calc(22px + env(safe-area-inset-bottom));z-index:40;font-size:.95rem;color:var(--muted);
     font-style:italic;opacity:0;transition:opacity 1.5s;max-width:60vw
   }
   .nowplaying.show{opacity:.85}
@@ -405,13 +406,15 @@ openBtn.addEventListener('click', () => {
 /* ---------------- reveal on scroll ---------------- */
 const io = new IntersectionObserver(entries => {
   entries.forEach(en => {
-    if (en.isIntersecting){
+    // sections taller than the screen (the letter, sideways) can never reach 35%,
+    // so also count them once they fill most of the screen
+    if (en.isIntersecting && (en.intersectionRatio >= .35 || en.intersectionRect.height >= innerHeight * .6)){
       en.target.classList.add('in');
       en.target.querySelectorAll('.caption-text').forEach((c, i) => typeCaption(c, 1400 + i * 700));
       io.unobserve(en.target);
     }
   });
-}, { threshold: 0.35 });
+}, { threshold: Array.from({ length: 21 }, (_, i) => i / 20) });
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
 // split captions into words that fade in one by one, like a whisper
@@ -495,7 +498,7 @@ function tick(now){
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
-['wheel', 'touchmove', 'keydown'].forEach(ev =>
+['wheel', 'touchstart', 'touchmove', 'keydown'].forEach(ev =>
   addEventListener(ev, () => { lastUser = performance.now(); }, { passive: true }));
 
 function startStory(){
@@ -547,12 +550,15 @@ document.getElementById('replay').addEventListener('click', () => {
 
 /* ---------------- floating lights (like our Christmas lights) ---------------- */
 const cv = document.getElementById('lights'), cx = cv.getContext('2d');
-let W, H, dots = [];
+let W, H, lastW = 0, dots = [];
 const COLORS = ['233,199,154','232,165,165','255,236,210','180,200,255'];
 function size(){
   const dpr = Math.min(2, devicePixelRatio || 1);
   W = cv.width = innerWidth * dpr; H = cv.height = innerHeight * dpr;
   cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
+  // the phone's address bar sliding in/out only changes height: keep the lights where they are
+  if (innerWidth === lastW) return;
+  lastW = innerWidth;
   const n = Math.round(Math.min(46, innerWidth / 22));
   dots = Array.from({ length: n }, () => ({
     x: Math.random() * W, y: Math.random() * H,
